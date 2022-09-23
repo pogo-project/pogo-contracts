@@ -5,7 +5,7 @@ At any time after the vesting time the user can unstake and harvest his tokens.
 
 ## Use case : 
 
-State initiale : 
+### State initiale : 
 - Staker A stake **100 tokens**.
 - Staker B stake **100 tokens**.
 
