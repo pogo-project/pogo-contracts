@@ -31,9 +31,12 @@ contract StakingRewards is Ownable {
     // Staking pool
     struct Pool {
         uint256 poolId;
+        uint256 maxPoolSupply; // Total supply available
+        uint256 stakingDuration; // 3 months / 6 months / 12 months
         uint256 totalTokensStaked; // Total tokens staked
-        uint256 lockPeriod; // lockPeriod
-        uint256 rewardTokensPerBlock;
+        uint256 minAPR; // 20 % / 25 % / 30 %
+        uint256 minTokensAmount; // Minimum tokens required
+        uint256 lastUpdatePoolSizePercent;
         address[] stakers; // Stakers in this pool
     }
 
@@ -48,6 +51,7 @@ contract StakingRewards is Ownable {
 
     // Mapping poolId => staker address => PoolStaker
     mapping(uint256 => mapping(address => PoolStaker)) public poolStakers;
+    mapping(address => bool) private stakerAddressList;
 
     /* ========== EVENTS ========== */
 
@@ -69,25 +73,54 @@ contract StakingRewards is Ownable {
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /// @notice Create a new staking Pool
-    /// @param _lockPeriod Minimum time the user's tokens will be locked.
-    /// @param _rewardTokensPerBlock Base Annual Percentage Rate the user will received after staked his tokens.
+    /// @param _maxPoolSupply Total supply available.
+    /// @param _stakingDuration Minimum time the user's tokens will be locked.
+    /// @param _minAPR Base Annual Percentage Rate the user will received after staked his tokens.
+    /// @param _minTokensAmount Minimum tokens amount to stake in the pool.
     function createPool(
-        uint256 _lockPeriod,
-        uint256 _rewardTokensPerBlock
+        uint256 _maxPoolSupply,
+        uint256 _stakingDuration,
+        uint256 _minAPR,
+        uint256 _minTokensAmount
     ) external onlyOwner {
-        require(_lockPeriod > 0, "Pool: Lock Period should be greater than 0");
+        require(_stakingDuration > 0, "Pool: Staking Duration should be greater than 0");
         uint256 poolId = _poolIdCounter.current();
 
         address[] memory stakers;
-        Pool memory pool = Pool(poolId, 0, _lockPeriod, _rewardTokensPerBlock,  stakers);
+        Pool memory pool = Pool(
+            poolId, 
+            _maxPoolSupply, 
+            _stakingDuration, 
+            0, 
+            _minAPR, 
+            _minTokensAmount, 
+            0, 
+            stakers
+        );
         pools.push(pool);
 
         _poolIdCounter.increment();
         emit PoolCreated(poolId);
     }
 
-    function addStakerToPoolIfInexistent() external {}
     function stake() external {}
     function withdraw() external {}
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    /// @notice Add staker to the pool.
+    /// @param _poolId Pool indentifier.
+    /// @param _depositingStaker Staker address.
+    function _addStakerToPoolIfInexistent(
+        uint256 _poolId, 
+        address _depositingStaker
+    ) private {
+        Pool storage pool = pools[_poolId];
+        for (uint256 i; i < pool.stakers.length; i++) {
+            address existingStaker = pool.stakers[i];
+            if (existingStaker == _depositingStaker) return;
+        }
+        pool.stakers.push(_depositingStaker);
+    }
 
 }

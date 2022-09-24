@@ -26,10 +26,17 @@ describe("POGO Contracts", function () {
   describe("StakingRewards", function () {
     it("Should return the created pool", async function () {
       const poolId = 0;
-      const lockPeriod = 131_400; // 3 month
-      const rewardTokensPerBlock = 20; // 20 %
+      const maxPoolSupply = 42_000_000;
+      const stakingDuration = 131_400; // 3 month
+      const minAPR = 20; // 20 %
+      const minTokensAmount = 500;
 
-      await stakingRewards.createPool(lockPeriod, rewardTokensPerBlock);
+      await stakingRewards.createPool(
+        maxPoolSupply, 
+        stakingDuration,
+        minAPR,
+        minTokensAmount
+      );
       const pool = await stakingRewards.pools(0);
       expect(pool.poolId).to.equal(poolId);
     });
