@@ -5,6 +5,14 @@ At any time after the vesting time the user can unstake and harvest his tokens.
 
 ## Use case : 
 
+Formula based on Synthetix implementation.
+#### **r(u,a,b) = R * l(u,t) / L(t)**
+
+- **l(u, t)** =token staked by user u at time t
+- **L(t)** = total staked token at time t.
+- **R** = rewards minted per second.
+- **r(u, a,b)** = reward for user u for a <= t <= b.
+
 ### State initiale : 
 - Staker A stake **100 tokens**.
 - Staker B stake **100 tokens**.
@@ -31,6 +39,3 @@ Rewards on day 2
 
 Rewards total 
 - Staker B harvest **(R * (100 / 200) * 24 * 3600) + (R * (100 / 100) * 24 * 3600)**.
-
-
-
