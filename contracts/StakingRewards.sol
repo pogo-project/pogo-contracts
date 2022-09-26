@@ -199,12 +199,15 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         Pool storage pool = pools[_poolId];
 
         require(_amount > 0, "Unstake amount canno't be 0.");
+        require(stakerAddressList[_staker] == false, "You're currently not staking tokens");
 
-
+        pool.totalTokensStaked -= _amount; // Remove amount to pool total staked tokens
+        PoolStaker memory staker = poolStakers[_poolId][msg.sender];
+        staker.stakedTokens -= _amount;
+        
         rewardToken.safeTransfer(_staker, _amount);
 
-        PoolStaker memory poolStaker = poolStakers[_poolId][msg.sender];
-        if(poolStaker.stakedTokens == 0) {
+        if(staker.stakedTokens == 0) {
             stakerAddressList[msg.sender] = false;
         }
 
