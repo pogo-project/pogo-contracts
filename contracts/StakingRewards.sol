@@ -65,11 +65,13 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         address _staker 
     ) {
         Pool memory pool = pools[_poolId];
-        PoolStaker memory poolStaker = poolStakers[_poolId][_staker];
+        PoolStaker memory staker = poolStakers[_poolId][_staker];
 
         pool.lastUpdatedTime = block.timestamp;
-        poolStaker.rewardPerTokenPaid = rewardPerToken(_poolId, _staker);
-        poolStaker.rewardsPending = earned(_poolId, _staker);
+        staker.lastUpdatedTime = block.timestamp;
+
+        staker.rewardPerTokenPaid = rewardPerToken(_poolId, _staker);
+        staker.rewardsPending = earned(_poolId, _staker);
 
         _;
     }
@@ -176,8 +178,6 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         _withdraw(_poolId, _amount, msg.sender);
     }
 
-    /// @notice Claim tokens
-    /// @param _poolId Pool indentifier.
     function claim(
         uint256 _poolId
     ) external nonReentrant updateReward(_poolId, msg.sender) {
@@ -214,8 +214,6 @@ contract StakingRewards is Ownable, ReentrancyGuard {
             staker.stakedTokens += _amount;// Add amount to current staked tokens
         }
         pool.totalTokensStaked += _amount; // Add amount to pool total staked tokens
-        pool.lastUpdatedTime = block.timestamp;
-        staker.lastUpdatedTime = block.timestamp;
 
         rewardToken.safeTransferFrom(_staker, address(this), _amount);
 
@@ -242,10 +240,8 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         require(stakerAddressList[_staker] == false, "You're currently not staking tokens");
 
         pool.totalTokensStaked -= _amount; // Remove amount to pool total staked tokens
-        pool.lastUpdatedTime = block.timestamp;
         PoolStaker memory staker = poolStakers[_poolId][msg.sender];
         staker.stakedTokens -= _amount;
-        staker.lastUpdatedTime = block.timestamp;
 
         rewardToken.safeTransfer(_staker, _amount);
 
