@@ -19,7 +19,7 @@ contract StakingRewards is Ownable, ReentrancyGuard {
     IERC20 public immutable rewardToken; // Token to be payed as reward
     Counters.Counter private _poolIdCounter;
 
-    uint256 private constant STAKER_SHARE_PRECISION = 1e12; // A big number to perform mul and div operations
+    uint256 private constant STAKER_SHARE_PRECISION = 1e18; // A big number to perform mul and div operations
 
     // Staking pool
     struct Pool {
@@ -29,8 +29,9 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         uint256 totalTokensStaked; // Total tokens amount staked
         uint256 minAPR; // 20 % / 25 % / 30 %
         uint256 currentAPR;
+        uint256 rewardPerTokenStored; // Sum of (minAPR * stakingDuration * STAKER_SHARE_PRECISION / total supply)
         uint256 minTokensAmount; // Minimum tokens required
-        uint256 lastUpdateTime;
+        uint256 lastUpdatedTime;
         address[] stakers; // Stakers in this pool
     }
 
@@ -38,8 +39,9 @@ contract StakingRewards is Ownable, ReentrancyGuard {
     struct PoolStaker {
         uint256 stakedTokens; // The tokens quantity the user has staked.
         uint256 rewardsPending; // The reward tokens quantity the user can harvest
-        uint256 rewardPerTokenStaked;
-        uint256 lastClaim; // Last claim of tokens
+        uint256 rewardPerTokenPaid;
+        uint256 lastClaimedTime; // Last claim of tokens
+        uint256 lastUpdatedTime;
         uint256 endDate; // Date from which the staker may claim his tokens
     }
 
@@ -51,7 +53,8 @@ contract StakingRewards is Ownable, ReentrancyGuard {
     /* ========== EVENTS ========== */
 
     event Stake(uint256 poolId, address indexed staker, uint256 amount);
-    event Unstake(uint256 indexed poolId, address indexed staker, uint256 amount);
+    event Withdraw(uint256 indexed poolId, address indexed staker, uint256 amount);
+    event Claimed(uint256 indexed poolId, address indexed staker, uint256 amount);
     event HarvestRewards(address indexed staker, uint256 indexed poolId, uint256 amount);
     event PoolCreated(uint256 poolId);
 
@@ -64,9 +67,9 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         Pool memory pool = pools[_poolId];
         PoolStaker memory poolStaker = poolStakers[_poolId][_staker];
 
-        pool.lastUpdateTime = block.timestamp;
-        poolStaker.rewardPerTokenStaked = rewardPerToken(_poolId, _staker);
-        poolStaker.rewardsPending = earned(_staker);
+        pool.lastUpdatedTime = block.timestamp;
+        poolStaker.rewardPerTokenPaid = rewardPerToken(_poolId, _staker);
+        poolStaker.rewardsPending = earned(_poolId, _staker);
 
         _;
     }
@@ -79,6 +82,10 @@ contract StakingRewards is Ownable, ReentrancyGuard {
 
     /* ========== VIEWS ========== */
 
+    function isStakerAddress(address check) public view returns(bool isIndeed) {
+        return stakerAddressList[check];
+    }
+
     /// @notice Calculate amount of rewards per token
     /// @param _poolId Pool indentifier.
     /// @param _staker Staker address.
@@ -87,13 +94,32 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         address _staker
     ) public view returns (uint256) {
         Pool memory pool = pools[_poolId];
-        PoolStaker memory poolStaker = poolStakers[_poolId][_staker];
-        if (pool.totalTokensStaked == 0) {
-            return 0;
+        PoolStaker memory staker = poolStakers[_poolId][_staker];
+        if (pool.maxPoolSupply == 0) {
+            return pool.rewardPerTokenStored;
         }
+
+        // r += R / totalSupply * (current time - last updated time)
+        // Where R is reward rate per second (total rewards / duration) 
+        return 
+            pool.rewardPerTokenStored + 
+            (pool.currentAPR * ( block.timestamp - staker.lastUpdatedTime ) * STAKER_SHARE_PRECISION) /
+            pool.maxPoolSupply;
     }
 
-    function earned(address _staker) public view returns (uint256) {}
+    /// @notice Get earned tokens for specify pool staker
+    /// @param _poolId Pool indentifier.
+    /// @param _staker Staker address.
+    function earned(
+        uint256 _poolId,
+        address _staker
+    ) public view returns (uint256) {
+        PoolStaker memory staker = poolStakers[_poolId][_staker];
+        return 
+        ((staker.stakedTokens *
+            (rewardPerToken(_poolId, _staker) - staker.rewardPerTokenPaid)) / STAKER_SHARE_PRECISION) +
+        staker.rewardsPending;
+    }
 
     /* ========== EXTERNAL FUNCTIONS ========== */
 
@@ -119,6 +145,7 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         pool.stakingDuration = _stakingDuration;
         pool.minAPR = _minAPR;
         pool.currentAPR = _minAPR;
+        pool.rewardPerTokenStored = pool.currentAPR * _stakingDuration * STAKER_SHARE_PRECISION / _maxPoolSupply;
         pool.minTokensAmount = _minTokensAmount;
         pool.stakers = stakers;
 
@@ -142,14 +169,20 @@ contract StakingRewards is Ownable, ReentrancyGuard {
     /// @notice Unstake tokens in a specify pool.
     /// @param _poolId Pool indentifier.
     /// @param _amount Amount to stake.
-    function unstake(
+    function withdraw(
         uint256 _poolId, 
         uint256 _amount
-    ) external updateReward(_poolId, msg.sender) {
-        _unstake(_poolId, _amount, msg.sender);
+    ) external nonReentrant updateReward(_poolId, msg.sender) {
+        _withdraw(_poolId, _amount, msg.sender);
     }
 
-    function claim(uint256 _poolId) external updateReward(_poolId, msg.sender) {}
+    /// @notice Claim tokens
+    /// @param _poolId Pool indentifier.
+    function claim(
+        uint256 _poolId
+    ) external nonReentrant updateReward(_poolId, msg.sender) {
+        _claim(_poolId, msg.sender);
+    }
 
     /* ========== INTERNAL FUNCTIONS ========== */
 
@@ -181,37 +214,66 @@ contract StakingRewards is Ownable, ReentrancyGuard {
             staker.stakedTokens += _amount;// Add amount to current staked tokens
         }
         pool.totalTokensStaked += _amount; // Add amount to pool total staked tokens
+        pool.lastUpdatedTime = block.timestamp;
+        staker.lastUpdatedTime = block.timestamp;
 
         rewardToken.safeTransferFrom(_staker, address(this), _amount);
+
+        // Update currentAPR
 
         emit Stake(_poolId, _staker, _amount);
     }
 
-    /// @notice Unstake tokens in a specify pool.
+    /// @notice Withdraw tokens in a specify pool.
     /// @param _poolId Pool indentifier.
     /// @param _amount Amount to stake.
     /// @param _staker Staker address.
-    function _unstake(
+    function _withdraw(
         uint256 _poolId,
         uint256 _amount,
         address _staker
     ) internal {
         Pool storage pool = pools[_poolId];
 
-        require(_amount > 0, "Unstake amount canno't be 0.");
+        // Get claimable amount
+
+        require(_amount > 0, "Nothing to withdraw");
+        require(rewardToken.balanceOf(address(this)) > _amount /* + claimableAmount */, "Insuficient contract balance");
         require(stakerAddressList[_staker] == false, "You're currently not staking tokens");
 
         pool.totalTokensStaked -= _amount; // Remove amount to pool total staked tokens
+        pool.lastUpdatedTime = block.timestamp;
         PoolStaker memory staker = poolStakers[_poolId][msg.sender];
         staker.stakedTokens -= _amount;
-        
+        staker.lastUpdatedTime = block.timestamp;
+
         rewardToken.safeTransfer(_staker, _amount);
 
         if(staker.stakedTokens == 0) {
             stakerAddressList[msg.sender] = false;
         }
 
-        emit Unstake(_poolId, _staker, _amount);
+        emit Withdraw(_poolId, _staker, _amount);
+        /*
+        if claimableAmount > 0 : emit Claimed(_poolId, _staker, _amount);
+         */ 
+    }
+
+    /// @notice Claim tokens
+    /// @param _poolId Pool indentifier.
+    /// @param _staker Staker address.
+    function _claim(
+        uint256 _poolId,
+        address _staker
+    ) internal {
+        PoolStaker memory staker = poolStakers[_poolId][_staker];
+        uint256 rewardsPending = staker.rewardsPending;
+        if(rewardsPending > 0 ) {
+            staker.rewardsPending = 0; // reset rewards pending
+            rewardToken.safeTransfer(_staker, rewardsPending);
+
+            emit Claimed(_poolId, _staker, rewardsPending);
+        }
     }
 
 }
