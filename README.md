@@ -3,39 +3,15 @@
 The staking contract allows the user to stake the platform's native tokens in different staking pools. The choice of staking pool depends on how long the user wants to lock their tokens and the annual percentage rate of tokens they will receive.
 At any time after the vesting time the user can unstake and harvest his tokens.
 
+## Formula : 
+
+### **r(u, k, n) = Si / Ti * R**
+- **r(u, k, n)** =  rewards earned by user **u** from **k** to **n** seconds.
+- Si = amount staked by user u at time = i
+- Ti = total staked at time = i (Assum Ti > 0)
+- R = reward rate per second (total rewards / duration)
+
 ## Use case : 
 
-Formula based on Synthetix implementation.
-#### **r(u,a,b) = R * l(u,t) / L(t)**
+Alice stakes 100 tokens for 7 889 400 seconds (3 months)
 
-- **l(u, t)** =token staked by user u at time t
-- **L(t)** = total staked token at time t.
-- **R** = rewards minted per second.
-- **r(u, a,b)** = reward for user u for a <= t <= b.
-
-### State initiale : 
-- Staker A stake **100 tokens**.
-- Staker B stake **100 tokens**.
-
-The total staked tokens in the pool is **200 tokens**.
-
-### 1 day after :
-- Staker A unstake **100 tokens**.
-- Staker A harvest **RewardsMintedPerSeconds * (StarkerAStakedTokens / TotalStakedTokens) * 1 day * 3600 seconds**.
-- Staker A harvest **R * (100 / 200) * 24 * 3600**.
-
-### 1 day more after :
-- Staker B unstake **$100**.
-
-Rewards on day 1
-
-- Staker B harvest **RewardsMintedPerSeconds * (StarkerBStakedTokens / TotalStakedTokens) * 1 day * 3600 seconds**. 
-- Staker B harvest **R * (100 / 200) * 24 * 3600**. 
-
-Rewards on day 2
-
-- Staker B harvest **RewardsMintedPerSeconds * (StarkerBStakedTokens / TotalStakedTokens) * 1 day * 3600 seconds**.
-- Staker B harvest **R * (100 / 100) * 24 * 3600**. 
-
-Rewards total 
-- Staker B harvest **(R * (100 / 200) * 24 * 3600) + (R * (100 / 100) * 24 * 3600)**.

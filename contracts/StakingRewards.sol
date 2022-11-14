@@ -70,8 +70,11 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         pool.lastUpdatedTime = block.timestamp;
         staker.lastUpdatedTime = block.timestamp;
 
-        staker.rewardPerTokenPaid = rewardPerToken(_poolId, _staker);
-        staker.rewardsPending = earned(_poolId, _staker);
+        uint256 rewardPerTokenStored = rewardPerToken(_poolId, _staker);
+        if(_staker != address(0)) {
+            staker.rewardsPending = earned(_poolId, _staker);
+            staker.rewardPerTokenPaid = rewardPerTokenStored;
+        }
 
         _;
     }
@@ -147,7 +150,6 @@ contract StakingRewards is Ownable, ReentrancyGuard {
         pool.stakingDuration = _stakingDuration;
         pool.minAPR = _minAPR;
         pool.currentAPR = _minAPR;
-        pool.rewardPerTokenStored = pool.currentAPR * _stakingDuration * STAKER_SHARE_PRECISION / _maxPoolSupply;
         pool.minTokensAmount = _minTokensAmount;
         pool.stakers = stakers;
 
@@ -271,5 +273,4 @@ contract StakingRewards is Ownable, ReentrancyGuard {
             emit Claimed(_poolId, _staker, rewardsPending);
         }
     }
-
 }
