@@ -16,7 +16,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 contract TicketingFactory is 
     ERC721URIStorageUpgradeable,
     ReentrancyGuardUpgradeable,
-    OwnableUpgradeable ,
+    OwnableUpgradeable,
     PausableUpgradeable
 {
     using Strings for uint256;
@@ -47,7 +47,7 @@ contract TicketingFactory is
         setBaseURI(_baseTokenURI);
     }
 
-    function mintTickets() public {
+    function mintTickets() public whenNotPaused {
         _ticketIds.increment();
         uint256 newTicketId = _ticketIds.current();
         _safeMint(msg.sender, newTicketId);
@@ -59,7 +59,7 @@ contract TicketingFactory is
         return baseURI;
     }
 
-    function setBaseURI(string memory _baseTokenURI) internal onlyOwner {
+    function setBaseURI(string memory _baseTokenURI) internal onlyOwner whenNotPaused {
         baseURI = _baseTokenURI;
     }
 
