@@ -11,11 +11,17 @@ contract Marketplace {
     struct TicketOffer {
         address owner;
         uint256 startPrice;
-        uint256 endSellingDate;
+        uint256 endSaleDate;
         address highestBidder;
-        address highestBid;
+        uint256 highestBid;
         bool active;
     }
+
+    mapping(uint256 => mapping(address => uint256)) bidders;
+    mapping(uint256 => TicketOffer) public ticketOffers;
+    uint256[] public ticketIds;
+
+    event newTicketSale(uint256 indexed _ticketId, uint256 indexed _startPrice, uint256 indexed _endSaleDate);
 
     constructor(IERC721 _ticketingFactory) {
         ticketingFactory = _ticketingFactory;
@@ -46,7 +52,28 @@ contract Marketplace {
     /**
      * Allow user to sell a ticket on the marketplace.
      */
-    function createTicketSale() public {}
+    function createTicketSale(uint256 _ticketId, uint256 _startPrice, uint256 _endSaleDate) external payable {
+        require(ticketingFactory.ownerOf(_ticketId) == msg.sender, 'You must own the ticket to sell it.');
+        require(_endSaleDate < block.timestamp + 1 weeks, 'The end sale date must be in less than 1 week');
+        require(_endSaleDate > block.timestamp + 1 days, 'The end sale date must be in more than 1 day');
+        require(_startPrice > 0, 'The start price must be greater than 0');
+        // Define listing price
+
+        ticketingFactory.transferFrom(msg.sender, address(this), _ticketId);
+        require(ticketingFactory.ownerOf(_ticketId) == address(this), 'The new ticket owner must be the marketplace itself.');
+
+        ticketIds.push(_ticketId);
+        TicketOffer memory ticketOffer = ticketOffers[_ticketId];
+        ticketOffer.owner = msg.sender;
+        ticketOffer.startPrice = _startPrice;
+        ticketOffer.endSaleDate = _endSaleDate;
+        ticketOffer.highestBidder = address(0);
+        ticketOffer.highestBid = 0;
+        ticketOffer.active = true;
+
+        emit newTicketSale(_ticketId, _startPrice, _endSaleDate);
+    }
+
     /**
      * Allow the user to make an offer on a specific ticket.
      */
