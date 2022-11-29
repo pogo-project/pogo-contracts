@@ -146,7 +146,8 @@ contract Marketplace {
      * Refund money if user are not the highest bidder
      */
     function refund(uint256 _ticketId, address payable _bidder, uint256 _amount) private {
-        _bidder.transfer(_amount);
+        (bool success,) = _bidder.call{value: _amount}('');
+        require(success, 'Failed to send Ether');
         resetBidderBid(_ticketId, _bidder);
     }
 
