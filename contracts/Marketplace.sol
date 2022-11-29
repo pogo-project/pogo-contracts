@@ -9,7 +9,7 @@ contract Marketplace {
     IERC721 public immutable ticketingFactory;
 
     struct TicketOffer {
-        address owner;
+        address payable owner;
         uint256 startPrice;
         uint256 endSaleDate;
         address highestBidder;
@@ -17,8 +17,8 @@ contract Marketplace {
         bool active;
     }
 
-    mapping(uint256 => mapping(address => uint256)) bidders;
-    mapping(uint256 => TicketOffer) public ticketOffers;
+    mapping(uint256 => mapping(address => uint256)) private bidders;
+    mapping(uint256 => TicketOffer) private ticketOffers;
     uint256[] public ticketIds;
 
     event newTicketSale(uint256 indexed _ticketId, uint256 indexed _startPrice, uint256 indexed _endSaleDate);
@@ -34,8 +34,16 @@ contract Marketplace {
     /**
      * Get all listed tickets on the marketplace.
      */
-    function getAllListedTickets() public view {}
+    function getAllListedTickets() public view returns (TicketOffer[] memory) {
 
+    }
+
+    /**
+     * Get ticket offer of a specific ticket.
+     */
+    function getTicketOffer(uint256 _ticketId) public view returns (TicketOffer memory) {
+        return ticketOffers[_ticketId];
+    }
     /**
      * Get all ticket offer of a specific user.
      */
@@ -50,6 +58,20 @@ contract Marketplace {
     function getListedTicketsOf() public view {}
 
     /**
+     * Get the bidder's amount of a specific user.
+     */
+    function getBidderBid(uint256 _ticketId, address _bidder) public view returns (uint256) {
+        return bidders[_ticketId][_bidder];
+    }
+
+    /**
+     * Set the bidder's amount of a specific user to 0.
+     */
+    function resetBidderBid(uint256 _ticketId, address _bidder) private {
+        bidders[_ticketId][_bidder] = 0;
+    }
+
+    /**
      * Allow user to sell a ticket on the marketplace.
      */
     function createTicketSale(uint256 _ticketId, uint256 _startPrice, uint256 _endSaleDate) external payable {
@@ -58,13 +80,14 @@ contract Marketplace {
         require(_endSaleDate > block.timestamp + 1 days, 'The end sale date must be in more than 1 day');
         require(_startPrice > 0, 'The start price must be greater than 0');
         // Define listing price
+        // require(msg.value == listingPrice, "Price must be equal to the listing price");
 
         ticketingFactory.transferFrom(msg.sender, address(this), _ticketId);
         require(ticketingFactory.ownerOf(_ticketId) == address(this), 'The new ticket owner must be the marketplace itself.');
 
         ticketIds.push(_ticketId);
         TicketOffer memory ticketOffer = ticketOffers[_ticketId];
-        ticketOffer.owner = msg.sender;
+        ticketOffer.owner = payable(msg.sender);
         ticketOffer.startPrice = _startPrice;
         ticketOffer.endSaleDate = _endSaleDate;
         ticketOffer.highestBidder = address(0);
@@ -77,18 +100,48 @@ contract Marketplace {
     /**
      * Allow the user to make an offer on a specific ticket.
      */
-    function addOfferOnTicket() public {}
+    function addOfferOnTicket(uint256 _ticketId, uint256 _amount) external payable {
+        TicketOffer memory ticketOffer = getTicketOffer(_ticketId);
+        require(ticketOffer.active == true, 'There is no sale for this ticket.');
+        require(ticketOffer.startPrice > _amount, 'Amount of the offer must be higher than the start price.');
+        require(ticketOffer.highestBid > _amount, 'Amount must be higher than the highest bid.');
+
+        // If bidder has already made an offer, readjust the amount to send
+        uint256 amount = _amount;
+        uint256 bidderBid = getBidderBid(_ticketId, msg.sender);
+        if(bidderBid != 0) {
+            amount -= bidderBid;
+        }
+
+        if(ticketOffer.highestBidder != msg.sender && ticketOffer.highestBidder != address(0)) {
+            refund(_ticketId, payable(msg.sender), amount);
+        }
+
+        uint256 newContractBalance = address(this).balance + amount;
+        // transferFrom(msg.sender, address(this), amount)
+        require(newContractBalance == address(this).balance, 'Balance not updated correctly, transfer probably failed');
+
+        ticketOffer.highestBidder = msg.sender;
+        ticketOffer.highestBid = _amount;
+        bidders[_ticketId][msg.sender] = _amount;
+        
+        // emit an event
+    }
     /**
      * Allow the user to cancel his offer of his ticket.
      */
     function cancelOfferOnTicket() public {}
     /**
-     * Refund money if user are not the highest bidder
-     */
-    function refund() public {}
-    /**
      * Allow the user to claim their purchased ticket after winning the auction.
      */
     function claim() public {}
+
+    /**
+     * Refund money if user are not the highest bidder
+     */
+    function refund(uint256 _ticketId, address payable _bidder, uint256 _amount) private {
+        _bidder.transfer(_amount);
+        resetBidderBid(_ticketId, _bidder);
+    }
 
 }
