@@ -128,9 +128,15 @@ contract Marketplace {
         // emit an event
     }
     /**
-     * Allow the user to cancel his offer of his ticket.
+     * Allow the user to cancel their offer
      */
-    function cancelOfferOnTicket() public {}
+    function cancelOfferOnTicket(uint256 _ticketId) external {
+        TicketOffer memory ticketOffer = getTicketOffer(_ticketId);
+        require(ticketOffer.highestBidder == address(0), 'Can not cancel the offer if someone already bidded on it.');
+        require(ticketOffer.owner == address(msg.sender), 'Only the owner can cancel the auction.');
+        ticketingFactory.transferFrom(address(this), msg.sender, _ticketId);
+        ticketOffer.active = false;
+    }
     /**
      * Allow the user to claim their purchased ticket after winning the auction.
      */
