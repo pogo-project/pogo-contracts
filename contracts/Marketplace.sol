@@ -12,7 +12,7 @@ contract Marketplace {
         address payable owner;
         uint256 startPrice;
         uint256 endSaleDate;
-        address highestBidder;
+        address payable highestBidder;
         uint256 highestBid;
         bool active;
     }
@@ -20,8 +20,11 @@ contract Marketplace {
     mapping(uint256 => mapping(address => uint256)) private bidders;
     mapping(uint256 => TicketOffer) private ticketOffers;
     uint256[] public ticketIds;
+    // The fee charged by the marketplace to be allowed to list Ticket
+    // uint256 listingPrice = 0.01 ether;
 
-    event newTicketSale(uint256 indexed _ticketId, uint256 indexed _startPrice, uint256 indexed _endSaleDate);
+    event NewTicketSale(uint256 indexed _ticketId, uint256 indexed _startPrice, uint256 indexed _endSaleDate);
+    event OfferAdded(address indexed _bidder, uint256 indexed _ticketId, uint256 indexed _amount);
 
     constructor(IERC721 _ticketingFactory) {
         ticketingFactory = _ticketingFactory;
@@ -82,6 +85,7 @@ contract Marketplace {
         // Define listing price
         // require(msg.value == listingPrice, "Price must be equal to the listing price");
 
+        // Check if correctly approve before transferFrom
         ticketingFactory.transferFrom(msg.sender, address(this), _ticketId);
         require(ticketingFactory.ownerOf(_ticketId) == address(this), 'The new ticket owner must be the marketplace itself.');
 
@@ -90,12 +94,14 @@ contract Marketplace {
         ticketOffer.owner = payable(msg.sender);
         ticketOffer.startPrice = _startPrice;
         ticketOffer.endSaleDate = _endSaleDate;
-        ticketOffer.highestBidder = address(0);
+        ticketOffer.highestBidder = payable(address(0));
         ticketOffer.highestBid = 0;
         ticketOffer.active = true;
 
-        emit newTicketSale(_ticketId, _startPrice, _endSaleDate);
+        emit NewTicketSale(_ticketId, _startPrice, _endSaleDate);
     }
+
+    function updateTicketSale() external {}
 
     /**
      * Allow the user to make an offer on a specific ticket.
@@ -121,11 +127,11 @@ contract Marketplace {
         // transferFrom(msg.sender, address(this), amount)
         require(newContractBalance == address(this).balance, 'Balance not updated correctly, transfer probably failed');
 
-        ticketOffer.highestBidder = msg.sender;
+        ticketOffer.highestBidder = payable(msg.sender);
         ticketOffer.highestBid = _amount;
         bidders[_ticketId][msg.sender] = _amount;
         
-        // emit an event
+        emit OfferAdded(msg.sender, _ticketId, _amount);
     }
     /**
      * Allow the user to cancel their offer
@@ -147,8 +153,10 @@ contract Marketplace {
      */
     function refund(uint256 _ticketId, address payable _bidder, uint256 _amount) private {
         (bool success,) = _bidder.call{value: _amount}('');
-        require(success, 'Failed to send Ether');
+        require(success, 'Failed to refund');
         resetBidderBid(_ticketId, _bidder);
+
+        // emit an event
     }
 
 }
