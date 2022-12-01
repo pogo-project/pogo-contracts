@@ -24,7 +24,8 @@ contract Marketplace {
     // uint256 listingPrice = 0.01 ether;
 
     event NewTicketSale(uint256 indexed _ticketId, uint256 indexed _startPrice, uint256 indexed _endSaleDate);
-    event OfferAdded(address indexed _bidder, uint256 indexed _ticketId, uint256 indexed _amount);
+    event OfferAdded(uint256 indexed _ticketId, address indexed _bidder, uint256 indexed _amount);
+    event BidderRefunded(uint256 indexed _ticketId, address indexed _bidder, uint256 indexed _amount);
 
     constructor(IERC721 _ticketingFactory) {
         ticketingFactory = _ticketingFactory;
@@ -38,7 +39,7 @@ contract Marketplace {
      * Get all listed tickets on the marketplace.
      */
     function getAllListedTickets() public view returns (TicketOffer[] memory) {
-
+        
     }
 
     /**
@@ -131,7 +132,7 @@ contract Marketplace {
         ticketOffer.highestBid = _amount;
         bidders[_ticketId][msg.sender] = _amount;
         
-        emit OfferAdded(msg.sender, _ticketId, _amount);
+        emit OfferAdded(_ticketId, msg.sender, _amount);
     }
     /**
      * Allow the user to cancel their offer
@@ -156,7 +157,7 @@ contract Marketplace {
         require(success, 'Failed to refund');
         resetBidderBid(_ticketId, _bidder);
 
-        // emit an event
+        emit BidderRefunded(_ticketId, _bidder, _amount);
     }
 
 }
