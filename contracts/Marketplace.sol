@@ -87,6 +87,7 @@ contract Marketplace {
         // require(msg.value == listingPrice, "Price must be equal to the listing price");
 
         // Check if correctly approve before transferFrom
+        require(ticketingFactory.getApproved(_ticketId) == address(this), 'Ticket not approved for marketplace');
         ticketingFactory.transferFrom(msg.sender, address(this), _ticketId);
         require(ticketingFactory.ownerOf(_ticketId) == address(this), 'The new ticket owner must be the marketplace itself.');
 
@@ -107,14 +108,14 @@ contract Marketplace {
     /**
      * Allow the user to make an offer on a specific ticket.
      */
-    function addOfferOnTicket(uint256 _ticketId, uint256 _amount) external payable {
+    function addOfferOnTicket(uint256 _ticketId) external payable {
         TicketOffer memory ticketOffer = getTicketOffer(_ticketId);
         require(ticketOffer.active == true, 'There is no sale for this ticket.');
-        require(ticketOffer.startPrice > _amount, 'Amount of the offer must be higher than the start price.');
-        require(ticketOffer.highestBid > _amount, 'Amount must be higher than the highest bid.');
+        require(ticketOffer.startPrice > msg.value, 'Amount of the offer must be higher than the start price.');
+        require(ticketOffer.highestBid > msg.value, 'Amount must be higher than the highest bid.');
 
         // If bidder has already made an offer, readjust the amount to send
-        uint256 amount = _amount;
+        uint256 amount = msg.value;
         uint256 bidderBid = getBidderBid(_ticketId, msg.sender);
         if(bidderBid != 0) {
             amount -= bidderBid;
@@ -129,10 +130,10 @@ contract Marketplace {
         require(newContractBalance == address(this).balance, 'Balance not updated correctly, transfer probably failed');
 
         ticketOffer.highestBidder = payable(msg.sender);
-        ticketOffer.highestBid = _amount;
-        bidders[_ticketId][msg.sender] = _amount;
+        ticketOffer.highestBid = amount;
+        bidders[_ticketId][msg.sender] = amount;
         
-        emit OfferAdded(_ticketId, msg.sender, _amount);
+        emit OfferAdded(_ticketId, msg.sender, amount);
     }
     /**
      * Allow the user to cancel their offer
