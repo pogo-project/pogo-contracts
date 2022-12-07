@@ -44,6 +44,13 @@ describe("POGO contracts", () => {
             expect(await ticketingFactory.tokenURI(ticketId)).to.equal(`ipfs://XXX/${ ticketId }.json`);
         });
 
+        it("Should mint tickets", async () => {
+            const ticketId: number = 2;
+            await ticketingFactory.connect(addr2).mintTickets();
+            expect(await ticketingFactory.balanceOf(await addr2.getAddress())).to.equal(1);
+            expect(await ticketingFactory.tokenURI(ticketId)).to.equal(`ipfs://XXX/${ ticketId }.json`);
+        });
+
     });
 
     describe("Marketplace contract", () => {
@@ -65,17 +72,42 @@ describe("POGO contracts", () => {
 
             await ticketingFactory.approve(marketplace.address, ticketId);
             await marketplace.createTicketSale(ticketId, startPrice, endSaleDate, { value: ethers.utils.parseEther(listingPrice) });
-            let ticketOffer = await marketplace.getTicketOffer(ticketId);
+            let ticketOffer = await marketplace.ticketOffers(ticketId);
             expect(ticketOffer.owner).to.equal(await owner.getAddress());
             expect(ticketOffer.startPrice).to.equal(startPrice);
             expect(ticketOffer.highestBidder).to.equal(ethers.constants.AddressZero);
             expect(ticketOffer.highestBid).to.equal(0);
             expect(ticketOffer.active).to.equal(true);
+            expect(await ethers.provider.getBalance(marketplace.address)).to.equal(ethers.utils.parseEther(listingPrice));
         });
 
         it("Should add offer on ticket", async () => {
+            let ticketId: number = 1;
+            let bidAmount = ethers.utils.parseEther("0.08");
+            await marketplace.connect(addr1).addOfferOnTicket(ticketId, { value: bidAmount });
 
+            let ticketOffer = await marketplace.ticketOffers(ticketId);
+            expect(ticketOffer.highestBidder).to.equal(await addr1.getAddress());
+            expect(ticketOffer.highestBid).to.equal(bidAmount);
         });
-    });
 
+
+
+        it("Should add offer on ticket", async () => {
+            let ticketId: number = 1;
+            let bidAmount = ethers.utils.parseEther("0.1");
+            await marketplace.connect(addr2).addOfferOnTicket(ticketId, { value: bidAmount });
+
+            let ticketOffer = await marketplace.ticketOffers(ticketId);
+            expect(ticketOffer.highestBidder).to.equal(await addr2.getAddress());
+            expect(ticketOffer.highestBid).to.equal(bidAmount);
+        });
+
+        it("Should try to cancel offer on ticket", async () => {
+            let ticketId: number = 1;
+            await expect(marketplace.cancelOfferOnTicket(ticketId))
+            .to.be.rejectedWith("Can not cancel the offer if someone already bidded on it.");
+        });
+
+    });
 });
