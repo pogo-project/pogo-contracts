@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Marketplace {
 
-    IERC721 public immutable ticketingFactory;
+    IERC721Upgradeable public ticketingFactory;
+    bool private initialized;
 
     struct TicketOffer {
         address payable owner;
@@ -27,7 +28,9 @@ contract Marketplace {
     event OfferAdded(uint256 indexed _ticketId, address indexed _bidder, uint256 indexed _amount);
     event BidderRefunded(uint256 indexed _ticketId, address indexed _bidder, uint256 indexed _amount);
 
-    constructor(IERC721 _ticketingFactory) {
+    function initialize(IERC721Upgradeable _ticketingFactory) external {
+        require(!initialized, "Contract instance has already been initialized");
+        initialized = true;
         ticketingFactory = _ticketingFactory;
     }
 
@@ -92,13 +95,14 @@ contract Marketplace {
         require(ticketingFactory.ownerOf(_ticketId) == address(this), 'The new ticket owner must be the marketplace itself.');
 
         ticketIds.push(_ticketId);
-        TicketOffer memory ticketOffer = ticketOffers[_ticketId];
-        ticketOffer.owner = payable(msg.sender);
-        ticketOffer.startPrice = _startPrice;
-        ticketOffer.endSaleDate = _endSaleDate;
-        ticketOffer.highestBidder = payable(address(0));
-        ticketOffer.highestBid = 0;
-        ticketOffer.active = true;
+        ticketOffers[_ticketId] = TicketOffer(
+            payable(msg.sender),
+            _startPrice,
+            _endSaleDate,
+            payable(address(0)),
+            0,
+            true
+        );
 
         emit NewTicketSale(_ticketId, _startPrice, _endSaleDate);
     }
@@ -157,7 +161,6 @@ contract Marketplace {
         (bool success,) = _bidder.call{value: _amount}('');
         require(success, 'Failed to refund');
         resetBidderBid(_ticketId, _bidder);
-
         emit BidderRefunded(_ticketId, _bidder, _amount);
     }
 
