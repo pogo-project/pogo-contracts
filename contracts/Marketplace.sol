@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "hardhat/console.sol";
+
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
@@ -19,7 +21,7 @@ contract Marketplace {
     }
 
     mapping(uint256 => mapping(address => uint256)) private bidders;
-    mapping(uint256 => TicketOffer) private ticketOffers;
+    mapping(uint256 => TicketOffer) public ticketOffers;
     uint256[] public ticketIds;
     // The fee charged by the marketplace to be allowed to list Ticket
     // uint256 listingPrice = 0.01 ether;
@@ -42,15 +44,8 @@ contract Marketplace {
      * Get all listed tickets on the marketplace.
      */
     function getAllListedTickets() public view returns (TicketOffer[] memory) {
-        
     }
 
-    /**
-     * Get ticket offer of a specific ticket.
-     */
-    function getTicketOffer(uint256 _ticketId) public view returns (TicketOffer memory) {
-        return ticketOffers[_ticketId];
-    }
     /**
      * Get all ticket offer of a specific user.
      */
@@ -113,13 +108,15 @@ contract Marketplace {
      * Allow the user to make an offer on a specific ticket.
      */
     function addOfferOnTicket(uint256 _ticketId) external payable {
-        TicketOffer memory ticketOffer = getTicketOffer(_ticketId);
+        TicketOffer storage ticketOffer = ticketOffers[_ticketId];
+
         require(ticketOffer.active == true, 'There is no sale for this ticket.');
-        require(ticketOffer.startPrice > msg.value, 'Amount of the offer must be higher than the start price.');
-        require(ticketOffer.highestBid > msg.value, 'Amount must be higher than the highest bid.');
+        require(ticketOffer.startPrice <= msg.value, 'Amount of the offer must be higher than the start price.');
+        require(ticketOffer.highestBid <= msg.value, 'Amount must be higher than the highest bid.');
 
         // If bidder has already made an offer, readjust the amount to send
         uint256 amount = msg.value;
+
         uint256 bidderBid = getBidderBid(_ticketId, msg.sender);
         if(bidderBid != 0) {
             amount -= bidderBid;
@@ -129,9 +126,9 @@ contract Marketplace {
             refund(_ticketId, payable(msg.sender), amount);
         }
 
-        uint256 newContractBalance = address(this).balance + amount;
-        // transferFrom(msg.sender, address(this), amount)
-        require(newContractBalance == address(this).balance, 'Balance not updated correctly, transfer probably failed');
+        // Need to correct this
+        // uint256 newContractBalance = address(this).balance + amount;
+        // require(newContractBalance == address(this).balance, 'Balance not updated correctly, transfer probably failed');
 
         ticketOffer.highestBidder = payable(msg.sender);
         ticketOffer.highestBid = amount;
@@ -139,11 +136,12 @@ contract Marketplace {
         
         emit OfferAdded(_ticketId, msg.sender, amount);
     }
+
     /**
      * Allow the user to cancel their offer
      */
     function cancelOfferOnTicket(uint256 _ticketId) external {
-        TicketOffer memory ticketOffer = getTicketOffer(_ticketId);
+        TicketOffer storage ticketOffer = ticketOffers[_ticketId];
         require(ticketOffer.highestBidder == address(0), 'Can not cancel the offer if someone already bidded on it.');
         require(ticketOffer.owner == address(msg.sender), 'Only the owner can cancel the auction.');
         ticketingFactory.transferFrom(address(this), msg.sender, _ticketId);
@@ -152,7 +150,13 @@ contract Marketplace {
     /**
      * Allow the user to claim their purchased ticket after winning the auction.
      */
-    function claim() public {}
+    function claim(uint256 _ticketId) external {
+        TicketOffer storage ticketOffer = ticketOffers[_ticketId];
+        require(ticketOffer.endSaleDate <= block.timestamp, "Can not claim before the offer has ended.");
+        require(ticketOffer.highestBidder == address(msg.sender), "Only the highest bidder can claim.");
+        ticketingFactory.transferFrom(address(this), ticketOffer.highestBidder, _ticketId);
+        ticketOffer.active = false;
+    }
 
     /**
      * Refund money if user are not the highest bidder
