@@ -91,7 +91,15 @@ describe("POGO contracts", () => {
             expect(ticketOffer.highestBid).to.equal(bidAmount);
         });
 
-
+        it("Should emit OfferAdded event", async () => {
+            let ticketId: number = 1;
+            let bidAmount = "0.08";
+            await expect(marketplace
+                .connect(addr1)
+                .addOfferOnTicket(ticketId, { value: ethers.utils.parseEther(bidAmount) }))
+                .to.emit(marketplace, "OfferAdded")
+                .withArgs(ticketId, await addr1.getAddress(), BigInt(bidAmount));
+        });
 
         it("Should add offer on ticket", async () => {
             let ticketId: number = 1;
