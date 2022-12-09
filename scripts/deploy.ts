@@ -26,6 +26,8 @@ async function main() {
     // Wait 6 blocks
     await ticketingFactory.deployTransaction.wait(6);
     await verify(ticketingFactory.address, []);
+    await marketplace.deployTransaction.wait(6);
+    await verify(marketplace.address, []);
   }
 }
 
